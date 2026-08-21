@@ -1,0 +1,51 @@
+name: job-radar
+
+on:
+  schedule:
+    - cron: '0 0 * * 1-5'   # 00:00 UTC = 07:00 GMT+7, thứ 2–6
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # commit seen.json
+  issues: write     # tạo issue digest -> GitHub tự gửi email
+
+concurrency:
+  group: job-radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch + filter jobs
+        id: fetch
+        run: node radar.js
+
+      - name: Mở issue digest (GitHub gửi email cho bạn)
+        if: steps.fetch.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('digest.md', 'utf8');
+            const today = new Date().toISOString().slice(0, 10);
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Job Radar ${today} — ${{ steps.fetch.outputs.count }} job .NET/remote`,
+              body,
+            });
+
+      - name: Lưu trạng thái đã xem
+        run: |
+          git config user.name "job-radar[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen.json
+          git commit -m "chore: update seen state [skip ci]" || echo "no change"
+          git push || echo "nothing to push"
