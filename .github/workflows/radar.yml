@@ -40,13 +40,16 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const body = fs.readFileSync('digest.md', 'utf8');
+            const owner = context.repo.owner;
+            // @mention + assign owner => GitHub CHẮC CHẮN gửi email (mặc định watch chỉ báo khi được nhắc/assign)
+            const body = `@${owner}\n\n` + fs.readFileSync('digest.md', 'utf8');
             const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
             await github.rest.issues.create({
-              owner: context.repo.owner,
+              owner,
               repo: context.repo.repo,
               title: `Job Radar ${when} — ${{ steps.fetch.outputs.count }} job mới`,
               body,
+              assignees: [owner],
             });
 
       - name: Lưu trạng thái đã xem
