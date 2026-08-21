@@ -2,7 +2,7 @@ name: job-radar
 
 on:
   schedule:
-    - cron: '0 0 * * 1-5'   # 00:00 UTC = 07:00 GMT+7, thứ 2–6
+    - cron: '*/10 * * * *'   # ~10 phút/lần (GitHub có thể trễ vài phút lúc tải cao)
   workflow_dispatch:
     inputs:
       force_test:
@@ -41,11 +41,11 @@ jobs:
           script: |
             const fs = require('fs');
             const body = fs.readFileSync('digest.md', 'utf8');
-            const today = new Date().toISOString().slice(0, 10);
+            const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Job Radar ${today} — ${{ steps.fetch.outputs.count }} job .NET/remote`,
+              title: `Job Radar ${when} — ${{ steps.fetch.outputs.count }} job mới`,
               body,
             });
 
