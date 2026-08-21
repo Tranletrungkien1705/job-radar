@@ -76,7 +76,10 @@ async function arbeitnow() {
 
   const list = fresh.slice(0, MAX_LIST);
   let md = `## 📡 Job Radar — ${fresh.length} job .NET/remote mới\n\n`;
-  if (fresh.length === 0) {
+  if (fresh.length === 0 && process.env.FORCE_TEST === 'true') {
+    md += '_(Issue TEST — hôm nay không có job thật. Nếu bạn nhận được email này ⇒ đường thông báo OK. Xoá thoải mái.)_\n\n'
+        + 'Khi có job thật, mỗi mục sẽ dạng:\n- [.NET Backend Developer (Remote)](https://example.com) — **Công ty ABC** · Remote/EU _(Jobicy)_';
+  } else if (fresh.length === 0) {
     md += '_Hôm nay không có job mới khớp từ khoá._\n';
   } else {
     md += list.map(j =>

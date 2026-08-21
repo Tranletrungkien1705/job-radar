@@ -3,7 +3,12 @@ name: job-radar
 on:
   schedule:
     - cron: '0 0 * * 1-5'   # 00:00 UTC = 07:00 GMT+7, thứ 2–6
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_test:
+        description: 'Tạo issue test dù không có job mới (kiểm tra email)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # commit seen.json
@@ -26,9 +31,11 @@ jobs:
       - name: Fetch + filter jobs
         id: fetch
         run: node radar.js
+        env:
+          FORCE_TEST: ${{ github.event.inputs.force_test }}
 
       - name: Mở issue digest (GitHub gửi email cho bạn)
-        if: steps.fetch.outputs.count != '0'
+        if: steps.fetch.outputs.count != '0' || github.event.inputs.force_test == 'true'
         uses: actions/github-script@v7
         with:
           script: |
