@@ -7,6 +7,9 @@ const STRONG_RE = /(\.net|dotnet|c#|c\ssharp|asp\.?net|blazor)/i;               
 const PROG_RE   = /(back[\s-]?end|full[\s-]?stack|software (engineer|developer)|web developer|platform engineer|\.net|c#|asp\.?net|blazor|\bapi\b)/i; // việc lập trình
 const DOABLE_RE = /(developer|engineer|software|back[\s-]?end|front[\s-]?end|full[\s-]?stack|\.net|c#|asp|\bapi\b|web dev|data|database|\bsql\b|python|javascript|typescript|node|react|automation|script|\bqa\b|tester|technical writ|content writ|wordpress|php)/i; // tech bạn+AI làm được
 const PART_RE   = /(part[\s-]?time|contract|freelance|temporary|hourly|c2h|part\b)/i;      // part-time/freelance
+const SENIOR_RE  = /\b(senior|sr\.?|lead|staff|principal|architect|head of|manager|director|\bvp\b|expert|10\+ years)\b/i;         // quá trình (2 năm chưa hợp)
+const LOC_BAD_RE = /(u\.?s\.?[\s-]?only|usa only|united states only|us[\s-]?based|based in (the )?us|us citizen|green card|eu only|europe only|uk only|canada only|germany only|australia only)/i; // vùng VN không apply được
+const LOC_GOOD_RE = /(worldwide|anywhere|global|\basia\b|apac|asia[- ]pacific|vietnam|viet nam|remote worldwide|no restriction|fully remote)/i;  // mở cho VN apply
 
 const SEEN_FILE = 'seen.json';
 const MAX_LIST = 60;
@@ -85,10 +88,16 @@ async function himalayas() {
 
   const enrich = (j) => {
     const hay = `${j.title} ${j.type} ${j.tags}`;
+    const loc = j.location || '';
     const net = STRONG_RE.test(j.title || '');
     const prog = net || PROG_RE.test(j.title || '');
     const part = PART_RE.test(hay) && DOABLE_RE.test(j.title || '');
-    return { ...j, net, prog, part };
+    const junior = !SENIOR_RE.test(j.title || '');     // hợp trình 2 năm (không senior/lead)
+    const restricted = LOC_BAD_RE.test(loc);           // vùng VN không apply được
+    const global = LOC_GOOD_RE.test(loc);              // mở toàn cầu/châu Á
+    // Điểm "VÀO ĐƯỢC công ty": ưu tiên apply-able từ VN + đúng trình + .NET (KHÔNG chỉ chạy theo lương)
+    const score = (global ? 4 : 0) + (restricted ? -6 : 2) + (junior ? 2 : 0) + (net ? 2 : 0) + (part ? 1 : 0);
+    return { ...j, net, prog, part, junior, restricted, global, score };
   };
   const matched = all
     .filter(j => j.url)
@@ -105,27 +114,28 @@ async function himalayas() {
   }
   fs.writeFileSync(SEEN_FILE, JSON.stringify([...seenSet].slice(-5000)));
 
-  // Sort: LƯƠNG cao lên đầu; job không lương -> ưu tiên .NET ⭐ rồi part-time.
-  fresh.sort((a, b) => (b.pay - a.pay) || ((b.net ? 1 : 0) - (a.net ? 1 : 0)) || ((b.part ? 1 : 0) - (a.part ? 1 : 0)));
+  // Sort: PHÙ HỢP (apply được từ VN + đúng trình + .NET) TRƯỚC, rồi lương cao.
+  fresh.sort((a, b) => (b.score - a.score) || (b.pay - a.pay));
 
   const netCount = fresh.filter(j => j.net).length;
   const partCount = fresh.filter(j => j.part).length;
+  const globalCount = fresh.filter(j => j.global && !j.restricted).length;
   const list = fresh.slice(0, MAX_LIST);
 
-  let md = `## 📡 Job Radar — ${fresh.length} job mới (⭐ ${netCount} .NET · 🌙 ${partCount} part-time · còn lại lập trình)\n\n`;
+  let md = `## 📡 Job Radar — ${fresh.length} job mới (🌏 ${globalCount} apply-được-từ-VN · ⭐ ${netCount} .NET · 🌙 ${partCount} part-time)\n\n`;
   if (fresh.length === 0 && process.env.FORCE_TEST === 'true') {
     md += '_(Issue TEST — lúc này không có job mới. Nhận được email này ⇒ đường thông báo OK. Xoá thoải mái.)_';
   } else if (fresh.length === 0) {
     md += '_Lúc này không có job mới khớp._';
   } else {
     md += list.map(j => {
-      const flag = (j.net ? '⭐ ' : '') + (j.part ? '🌙 ' : '');
+      const flag = (j.net ? '⭐ ' : '') + (j.part ? '🌙 ' : '') + (j.global ? '🌏 ' : '');
       const pay = j.payText ? ` · 💰 ${j.payText}` : '';
       return `- ${flag}[${j.title}](${j.url}) — **${j.company || '?'}** · ${j.location || 'Remote'}${pay} _(${j.source})_`;
     }).join('\n');
     if (fresh.length > MAX_LIST) md += `\n\n_…và ${fresh.length - MAX_LIST} job nữa (đã lưu)._`;
   }
-  md += `\n\n---\n⭐ .NET · 🌙 part-time/freelance · 💰 lương (nếu có). Nguồn: Jobicy · RemoteOK · Remotive · Arbeitnow · Himalayas — auto GitHub Actions.`;
+  md += `\n\n---\n🌏 apply-được-từ-VN · ⭐ .NET · 🌙 part-time · 💰 lương. Xếp: PHÙ HỢP nhất trước (apply được + đúng trình 2 năm + .NET), rồi lương cao — không đẩy job US-only/senior không với tới lên đầu. Nguồn: Jobicy · RemoteOK · Remotive · Arbeitnow · Himalayas.`;
   fs.writeFileSync('digest.md', md);
 
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${fresh.length}\n`);
