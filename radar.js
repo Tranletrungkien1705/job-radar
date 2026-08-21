@@ -3,10 +3,12 @@
 // Không phụ thuộc package ngoài (dùng fetch built-in của Node 18+).
 const fs = require('fs');
 
-// Lọc theo TIÊU ĐỀ (chính xác cao) cho các nguồn "rộng"; nguồn đã query sẵn tag .NET (pre=true) thì nhận hết.
-const TITLE_RE = /(\.net|dotnet|c#|c\ssharp|asp\.?net|blazor)/i;
+// STRONG = tín hiệu .NET rõ (luôn nhận). BROAD (chế độ rộng) = backend/fullstack/software-engineer.
+const STRONG_RE = /(\.net|dotnet|c#|c\ssharp|asp\.?net|blazor)/i;
+const BROAD_RE  = /(back[\s-]?end|full[\s-]?stack|software (engineer|developer)|web developer|platform engineer|\bapi\b)/i;
+const MODE = (process.env.MODE || 'broad').toLowerCase();  // 'broad' = bắt cả backend/fullstack; 'strict' = chỉ .NET
 const SEEN_FILE = 'seen.json';
-const MAX_LIST = 50;
+const MAX_LIST = 60;
 
 async function safeJson(url) {
   try {
@@ -36,7 +38,7 @@ async function remoteok() {
   }));
 }
 async function remotive() {
-  const d = await safeJson('https://remotive.com/api/remote-jobs?search=.net');
+  const d = await safeJson('https://remotive.com/api/remote-jobs?category=software-dev');
   if (!d || !Array.isArray(d.jobs)) return [];
   return d.jobs.map(x => ({
     title: x.title, company: x.company_name, url: x.url,
@@ -62,7 +64,10 @@ async function arbeitnow() {
 
 (async () => {
   const all = [].concat(...(await Promise.all([jobicy(), remoteok(), remotive(), arbeitnow(), himalayas()])));
-  const matched = all.filter(j => j.url && (j.pre || TITLE_RE.test(j.title || '')));
+  const isNet = (j) => j.pre || STRONG_RE.test(j.title || '');
+  const matched = all
+    .filter(j => j.url && (isNet(j) || (MODE === 'broad' && BROAD_RE.test(j.title || ''))))
+    .map(j => ({ ...j, net: isNet(j) }));
 
   const seen = fs.existsSync(SEEN_FILE) ? JSON.parse(fs.readFileSync(SEEN_FILE, 'utf8')) : [];
   const seenSet = new Set(seen);
@@ -74,8 +79,10 @@ async function arbeitnow() {
   }
   fs.writeFileSync(SEEN_FILE, JSON.stringify([...seenSet].slice(-4000)));
 
+  fresh.sort((a, b) => (b.net ? 1 : 0) - (a.net ? 1 : 0)); // .NET lên đầu
+  const netCount = fresh.filter(j => j.net).length;
   const list = fresh.slice(0, MAX_LIST);
-  let md = `## 📡 Job Radar — ${fresh.length} job .NET/remote mới\n\n`;
+  let md = `## 📡 Job Radar — ${fresh.length} job mới (⭐ ${netCount} .NET · ${fresh.length - netCount} backend/remote)\n\n`;
   if (fresh.length === 0 && process.env.FORCE_TEST === 'true') {
     md += '_(Issue TEST — hôm nay không có job thật. Nếu bạn nhận được email này ⇒ đường thông báo OK. Xoá thoải mái.)_\n\n'
         + 'Khi có job thật, mỗi mục sẽ dạng:\n- [.NET Backend Developer (Remote)](https://example.com) — **Công ty ABC** · Remote/EU _(Jobicy)_';
@@ -83,7 +90,7 @@ async function arbeitnow() {
     md += '_Hôm nay không có job mới khớp từ khoá._\n';
   } else {
     md += list.map(j =>
-      `- [${j.title}](${j.url}) — **${j.company || '?'}** · ${j.location || 'Remote'} _(${j.source})_`
+      `- ${j.net ? '⭐ ' : ''}[${j.title}](${j.url}) — **${j.company || '?'}** · ${j.location || 'Remote'} _(${j.source})_`
     ).join('\n');
     if (fresh.length > MAX_LIST) md += `\n\n_…và ${fresh.length - MAX_LIST} job nữa (đã lưu, tránh spam)._`;
   }
