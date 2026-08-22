@@ -7,7 +7,7 @@ const STRONG_RE = /(\.net|dotnet|c#|c\ssharp|asp\.?net|blazor)/i;               
 const PROG_RE   = /(back[\s-]?end|full[\s-]?stack|software (engineer|developer)|web developer|platform engineer|\.net|c#|asp\.?net|blazor|\bapi\b)/i; // việc lập trình
 const DOABLE_RE = /(developer|engineer|software|back[\s-]?end|front[\s-]?end|full[\s-]?stack|\.net|c#|asp|\bapi\b|web dev|data|database|\bsql\b|python|javascript|typescript|node|react|automation|script|\bqa\b|tester|technical writ|content writ|wordpress|php)/i; // tech bạn+AI làm được
 const PART_RE   = /(part[\s-]?time|contract|freelance|temporary|hourly|c2h|part\b)/i;      // part-time/freelance
-const SENIOR_RE  = /\b(senior|sr\.?|lead|staff|principal|architect|head of|manager|director|\bvp\b|expert|10\+ years)\b/i;         // quá trình (2 năm chưa hợp)
+const SENIOR_RE  = /\b(senior|sr\.?|lead|staff|principal|architect|head of|manager|director|\bvp\b|expert)\b|(?:[4-9]|1[0-9])\+?\s*(years|yrs|year|năm)/i; // senior/lead/4+ năm -> loại
 const LOC_BAD_RE = /(u\.?s\.?[\s-]?only|usa only|united states only|us[\s-]?based|based in (the )?us|us citizen|green card|eu only|europe only|uk only|canada only|germany only|australia only)/i; // vùng VN không apply được
 const LOC_GOOD_RE = /(worldwide|anywhere|global|\basia\b|apac|asia[- ]pacific|vietnam|viet nam|remote worldwide|no restriction|fully remote)/i;  // mở cho VN apply
 
@@ -102,7 +102,7 @@ async function himalayas() {
   const matched = all
     .filter(j => j.url)
     .map(enrich)
-    .filter(j => j.prog || j.part);   // (A) lập trình hoặc (B) part-time tech
+    .filter(j => (j.prog || j.part) && j.junior);   // (A) lập trình / (B) part-time tech, VÀ loại senior/4+ năm
 
   const seen = fs.existsSync(SEEN_FILE) ? JSON.parse(fs.readFileSync(SEEN_FILE, 'utf8')) : [];
   const seenSet = new Set(seen);
