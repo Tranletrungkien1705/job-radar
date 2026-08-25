@@ -24,6 +24,8 @@ async function safeJson(url) {
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const kfmt = (n) => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n}`;
+// chịu được cả mảng lẫn string (API hay đổi kiểu -> tránh .join crash)
+const arr = (v) => Array.isArray(v) ? v.join(' ') : (typeof v === 'string' ? v : '');
 
 async function jobicy() {
   const d = await safeJson('https://jobicy.com/api/v2/remote-jobs?count=50');
@@ -32,7 +34,7 @@ async function jobicy() {
     const min = num(x.annualSalaryMin), max = num(x.annualSalaryMax);
     return {
       title: x.jobTitle, company: x.companyName, url: x.url, location: x.jobGeo || 'Remote',
-      source: 'Jobicy', type: (x.jobType || []).join(' '), tags: '',
+      source: 'Jobicy', type: arr(x.jobType), tags: '',
       pay: max || min, payText: (min || max) ? `${kfmt(min || max)}–${kfmt(max || min)}` : '',
     };
   });
@@ -44,7 +46,7 @@ async function remoteok() {
     const min = num(x.salary_min), max = num(x.salary_max);
     return {
       title: x.position, company: x.company, url: x.url, location: x.location || 'Remote',
-      source: 'RemoteOK', type: '', tags: (x.tags || []).join(' '),
+      source: 'RemoteOK', type: '', tags: arr(x.tags),
       pay: max || min, payText: (min || max) ? `${kfmt(min || max)}–${kfmt(max || min)}` : '',
     };
   });
@@ -55,7 +57,7 @@ async function remotive() {
   return d.jobs.map(x => ({
     title: x.title, company: x.company_name, url: x.url,
     location: x.candidate_required_location || 'Remote', source: 'Remotive',
-    type: x.job_type || '', tags: (x.tags || []).join(' '),
+    type: x.job_type || '', tags: arr(x.tags),
     pay: 0, payText: (x.salary || '').trim(),
   }));
 }
@@ -65,7 +67,7 @@ async function arbeitnow() {
   return d.data.map(x => ({
     title: x.title, company: x.company_name, url: x.url,
     location: x.location || (x.remote ? 'Remote' : ''), source: 'Arbeitnow',
-    type: (x.job_types || []).join(' '), tags: (x.tags || []).join(' '),
+    type: arr(x.job_types), tags: arr(x.tags),
     pay: 0, payText: '',
   }));
 }
@@ -76,7 +78,7 @@ async function himalayas() {
     const min = num(x.minSalary), max = num(x.maxSalary);
     return {
       title: x.title, company: x.companyName, url: x.applicationLink || x.guid,
-      location: (x.locationRestrictions && x.locationRestrictions.join(', ')) || 'Remote',
+      location: (Array.isArray(x.locationRestrictions)?x.locationRestrictions.join(', '):'') || 'Remote',
       source: 'Himalayas', type: x.employmentType || '', tags: '',
       pay: max || min, payText: (min || max) ? `${kfmt(min || max)}–${kfmt(max || min)}` : '',
     };
