@@ -2,7 +2,7 @@ name: job-radar
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # ~10 phút/lần (GitHub có thể trễ vài phút lúc tải cao)
+    - cron: '0 */2 * * *'   # mỗi 2 giờ (GitHub bóp cron dày nên 10 phút vô nghĩa; 2h là hợp lý)
   workflow_dispatch:
     inputs:
       force_test:
@@ -40,13 +40,19 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const owner = context.repo.owner;
-            // @mention + assign owner => GitHub CHẮC CHẮN gửi email (mặc định watch chỉ báo khi được nhắc/assign)
+            const owner = context.repo.owner, repo = context.repo.repo;
+            // Đóng hết issue radar cũ trước -> chỉ giữ đúng 1 issue mới nhất (khỏi ngập)
+            const olds = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 100 });
+            for (const it of olds.data) {
+              if (it.pull_request) continue;
+              await github.rest.issues.update({ owner, repo, issue_number: it.number, state: 'closed' });
+            }
+            // @mention + assign owner => GitHub CHẮC CHẮN gửi email
             const body = `@${owner}\n\n` + fs.readFileSync('digest.md', 'utf8');
             const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
             await github.rest.issues.create({
               owner,
-              repo: context.repo.repo,
+              repo,
               title: `Job Radar ${when} — ${{ steps.fetch.outputs.count }} job mới`,
               body,
               assignees: [owner],
